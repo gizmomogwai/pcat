@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/pcat
+pcat.so
+pcat.dylib
+pcat.dll
+pcat.a
+pcat.lib
+pcat-test-*
+*.exe
+*.o
+*.obj
+*.lst

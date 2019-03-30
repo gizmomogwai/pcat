@@ -1,0 +1,6 @@
+name "pcat"
+description "A parallel cat."
+authors "Christian Koestlin"
+copyright "Copyright (c), Christian Koestlin"
+license "MIT"
+dependency "colored" version="~>0.0.21"
