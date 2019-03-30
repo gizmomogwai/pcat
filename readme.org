@@ -1,0 +1,6 @@
+* pcat
+
+Cat several files in parallel into one colorful stream.
+
+** Usage
+pcat file1 file2 file3 ...
