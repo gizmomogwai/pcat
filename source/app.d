@@ -14,29 +14,25 @@ void read(File file, AnsiColor color, string filename)
     // dfmt off
     file
         .byLineCopy
-        .each!(line => ownerTid().send(color,
-                                       filename,
-                                       Clock.currTime.toISOExtString,
-                                       line));
+        .each!(line =>
+               ownerTid().send(color,
+                               filename,
+                               Clock.currTime.toISOExtString,
+                               line));
     // dfmt on
 }
 
-void readFile(AnsiColor color, string filename)
+void readFile(string filename, AnsiColor color)
 {
     File(filename).read(color, filename);
 }
 
-void readProcess(AnsiColor color, string command)
+void readProcess(string command, AnsiColor color)
 {
-    auto pipes = pipeShell(command, Redirect.stdout | Redirect.stderrToStdout);
+    auto pipes = command.pipeShell(Redirect.stdout | Redirect.stderrToStdout);
     pipes.stdout.read(color, command);
     auto res = pipes.pid.wait;
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
-}
-
-struct Failed
-{
-    string why;
 }
 
 void readCommand(string command)
@@ -51,26 +47,37 @@ void readCommand(string command)
     switch (m["protocol"])
     {
     case "file":
-        readFile(color, rest);
+        rest.readFile(color);
         break;
     case "process":
-        readProcess(color, rest);
+        rest.readProcess(color);
         break;
     default:
         throw new Exception("Cannot work with " ~ command);
     }
 }
 
-void noThrowReadCommand(string command) {
+struct Failed
+{
+    string why;
+}
+
+void noThrowReadCommand(string command)
+{
     try
         readCommand(command);
     catch (Exception e)
-        ownerTid().send(Failed(e.message.idup));
+        ownerTid.send(Failed(e.message.idup));
 }
 
 void main(string[] args)
 {
-    auto subprocesses = args[1 .. $].map!(command => spawnLinked(&noThrowReadCommand, command)).array.count;
+    // dfmt off
+    auto subprocesses = args[1 .. $]
+        .map!(command => (&noThrowReadCommand).spawnLinked(command))
+        .array
+        .count;
+    // dfmt on
     while (subprocesses > 0)
     {
         // dfmt off
