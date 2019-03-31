@@ -3,4 +3,19 @@
 Cat several files in parallel into one colorful stream.
 
 ** Usage
-pcat file1 file2 file3 ...
+pcat (protocol://color/args)*
+
+*** protocol:
+- file
+  args is the filename
+  e.g.:
+    file://red/test.txt would be a file relative to the current working directory 
+    file://red//test.txt would be /test.txt
+- process
+    args is the command to execute
+    e.g.:
+      "process://red/cat test.txt" would execut cat test.txt
+
+*** color
+  red, green, blue, cyan, magenta, yellow
+
