@@ -9,48 +9,49 @@ import std.range;
 import std.regex;
 import std.stdio;
 
-void read(File file, AnsiColor color, string filename)
+void read(File file, string channel, AnsiColor color)
 {
     // dfmt off
     file
         .byLineCopy
         .each!(line =>
                ownerTid().send(color,
-                               filename,
+                               channel,
                                Clock.currTime.toISOExtString,
                                line));
     // dfmt on
 }
 
-void readFile(string filename, AnsiColor color)
+void readFile(string filename, string channel, AnsiColor color)
 {
-    File(filename).read(color, filename);
+    File(filename).read(channel, color);
 }
 
-void readProcess(string command, AnsiColor color)
+void readProcess(string command, string channel, AnsiColor color)
 {
     auto pipes = command.pipeShell(Redirect.stdout | Redirect.stderrToStdout);
-    pipes.stdout.read(color, command);
+    pipes.stdout.read(channel, color);
     auto res = pipes.pid.wait;
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
 }
 
 void readCommand(string command)
 {
-    auto r = regex("(?P<protocol>.*?)://(?P<color>.*?)/(?P<rest>.*)");
+    auto r = regex("(?P<channel>.*?):(?P<color>.*?)=(?P<protocol>.*?):(?P<rest>.*)");
     auto m = command.matchFirst(r);
     enforce(m, "Cannot parse " ~ command);
 
-    auto protocol = m["protocol"];
+    auto channel = m["channel"];
     auto color = to!AnsiColor(m["color"]);
+    auto protocol = m["protocol"];
     auto rest = m["rest"];
     switch (m["protocol"])
     {
     case "file":
-        rest.readFile(color);
+        rest.readFile(channel, color);
         break;
     case "process":
-        rest.readProcess(color);
+        rest.readProcess(channel, color);
         break;
     default:
         throw new Exception("Cannot work with " ~ command);
@@ -84,7 +85,7 @@ void main(string[] args)
         receive(
             (AnsiColor color, string channel, string timestamp, string message)
             {
-                writeln(new StyledString("%-26s %s: %s".format(timestamp, channel, message)).setForeground(color));
+                writeln(new StyledString("%-26s %s ".format(timestamp, channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
