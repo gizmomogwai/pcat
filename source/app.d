@@ -15,6 +15,7 @@ void read(File file, string channel, AnsiColor color)
     // dfmt off
     file
         .byLineCopy
+        .filter!(line => line.length > 0)
         .each!(line =>
                ownerTid().send(color,
                                channel,
@@ -36,6 +37,39 @@ void readProcess(string command, string channel, AnsiColor color)
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
 }
 
+File setBaudrate(File file, int baudrate) {
+    import core.sys.posix.sys.ioctl;
+
+    termios2 options;
+    auto res = ioctl(file.fileno, TCGETS2, &options);
+    enforce(res == 0, "Cannot TCGETS2");
+
+    enum CBAUD = std.conv.octal!10007;
+    enum CBOTHER = std.conv.octal!10000;
+    options.c_cflag &= ~CBAUD;    //Remove current BAUD rate
+    options.c_cflag |= CBOTHER;    //Allow custom BAUD rate using int input
+    options.c_ispeed = baudrate;    //Set the input BAUD rate
+    options.c_ospeed = baudrate;    //Set the output BAUD rate
+    res = ioctl(file.fileno, _IOW!termios2('T', 0x2B), &options);
+    enforce(res == 0, "Cannot TCSETS2");
+
+    return file;
+}
+
+// serial:/dev/ttyUSB0:921600
+void readSerial(string serialSettings, string channel, AnsiColor color)
+{
+    auto r = regex("(?P<path>.+?):(?P<baudrate>.*)");
+    auto m = serialSettings.matchFirst(r);
+    enforce(m, "Cannot parse " ~ serialSettings);
+
+    auto path = m["path"];
+    auto baudrate = m["baudrate"];
+    auto file = File(path);
+    file.setBaudrate(baudrate.to!int);
+    file.read(channel, color);
+}
+
 void readCommand(string command)
 {
     auto r = regex("(?P<channel>.*?):(?P<color>.*?)=(?P<protocol>.*?):(?P<rest>.*)");
@@ -53,6 +87,9 @@ void readCommand(string command)
         break;
     case "process":
         rest.readProcess(channel, color);
+        break;
+    case "serial":
+        rest.readSerial(channel, color);
         break;
     default:
         throw new Exception("Cannot work with " ~ command);
