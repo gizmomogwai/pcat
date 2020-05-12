@@ -8,6 +8,7 @@ import std.process;
 import std.range;
 import std.regex;
 import std.stdio;
+import std.string;
 
 void read(File file, string channel, AnsiColor color)
 {
