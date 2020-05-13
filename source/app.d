@@ -37,7 +37,8 @@ void readProcess(string command, string channel, AnsiColor color)
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
 }
 
-File setBaudrate(File file, int baudrate) {
+File setBaudrate(File file, int baudrate)
+{
     import core.sys.posix.sys.ioctl;
 
     termios2 options;
@@ -46,10 +47,10 @@ File setBaudrate(File file, int baudrate) {
 
     enum CBAUD = std.conv.octal!10007;
     enum CBOTHER = std.conv.octal!10000;
-    options.c_cflag &= ~CBAUD;    //Remove current BAUD rate
-    options.c_cflag |= CBOTHER;    //Allow custom BAUD rate using int input
-    options.c_ispeed = baudrate;    //Set the input BAUD rate
-    options.c_ospeed = baudrate;    //Set the output BAUD rate
+    options.c_cflag &= ~CBAUD; //Remove current BAUD rate
+    options.c_cflag |= CBOTHER; //Allow custom BAUD rate using int input
+    options.c_ispeed = baudrate; //Set the input BAUD rate
+    options.c_ospeed = baudrate; //Set the output BAUD rate
     res = ioctl(file.fileno, _IOW!termios2('T', 0x2B), &options);
     enforce(res == 0, "Cannot TCSETS2");
 
@@ -70,6 +71,7 @@ void readSerial(string serialSettings, string channel, AnsiColor color)
     file.read(channel, color);
 }
 
+// name:color=[file:path|process:cmd|serial:path:baudrate]
 void readCommand(string command)
 {
     auto r = regex("(?P<channel>.*?):(?P<color>.*?)=(?P<protocol>.*?):(?P<rest>.*)");
@@ -111,6 +113,16 @@ void noThrowReadCommand(string command)
 
 void main(string[] args)
 {
+    import std.getopt;
+
+    auto helpInformation = getopt(args, std.getopt.config.passThrough);
+    if (helpInformation.helpWanted)
+    {
+        defaultGetoptPrinter("Usage: pcat (id:color=protocol:rest)+\n  protocol = file|process|serial\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
+                helpInformation.options);
+        return;
+    }
+
     // dfmt off
     auto subprocesses = args[1 .. $]
         .map!(command => (&noThrowReadCommand).spawnLinked(command))
