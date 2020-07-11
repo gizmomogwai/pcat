@@ -37,40 +37,42 @@ void readProcess(string command, string channel, AnsiColor color)
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
 }
 
-File setBaudrate(File file, int baudrate)
+version (linux)
 {
-    import core.sys.posix.sys.ioctl;
+    File setBaudrate(File file, int baudrate)
+    {
+        import core.sys.posix.sys.ioctl;
 
-    termios2 options;
-    auto res = ioctl(file.fileno, TCGETS2, &options);
-    enforce(res == 0, "Cannot TCGETS2");
+        termios2 options;
+        auto res = ioctl(file.fileno, TCGETS2, &options);
+        enforce(res == 0, "Cannot TCGETS2");
 
-    enum CBAUD = std.conv.octal!10007;
-    enum CBOTHER = std.conv.octal!10000;
-    options.c_cflag &= ~CBAUD; //Remove current BAUD rate
-    options.c_cflag |= CBOTHER; //Allow custom BAUD rate using int input
-    options.c_ispeed = baudrate; //Set the input BAUD rate
-    options.c_ospeed = baudrate; //Set the output BAUD rate
-    res = ioctl(file.fileno, _IOW!termios2('T', 0x2B), &options);
-    enforce(res == 0, "Cannot TCSETS2");
+        enum CBAUD = std.conv.octal!10007;
+        enum CBOTHER = std.conv.octal!10000;
+        options.c_cflag &= ~CBAUD; //Remove current BAUD rate
+        options.c_cflag |= CBOTHER; //Allow custom BAUD rate using int input
+        options.c_ispeed = baudrate; //Set the input BAUD rate
+        options.c_ospeed = baudrate; //Set the output BAUD rate
+        res = ioctl(file.fileno, _IOW!termios2('T', 0x2B), &options);
+        enforce(res == 0, "Cannot TCSETS2");
 
-    return file;
+        return file;
+    }
+
+    // serial:/dev/ttyUSB0:921600
+    void readSerial(string serialSettings, string channel, AnsiColor color)
+    {
+        auto r = regex("(?P<path>.+?):(?P<baudrate>.*)");
+        auto m = serialSettings.matchFirst(r);
+        enforce(m, "Cannot parse " ~ serialSettings);
+
+        auto path = m["path"];
+        auto baudrate = m["baudrate"];
+        auto file = File(path);
+        file.setBaudrate(baudrate.to!int);
+        file.read(channel, color);
+    }
 }
-
-// serial:/dev/ttyUSB0:921600
-void readSerial(string serialSettings, string channel, AnsiColor color)
-{
-    auto r = regex("(?P<path>.+?):(?P<baudrate>.*)");
-    auto m = serialSettings.matchFirst(r);
-    enforce(m, "Cannot parse " ~ serialSettings);
-
-    auto path = m["path"];
-    auto baudrate = m["baudrate"];
-    auto file = File(path);
-    file.setBaudrate(baudrate.to!int);
-    file.read(channel, color);
-}
-
 // name:color=[file:path|process:cmd|serial:path:baudrate]
 void readCommand(string command)
 {
@@ -90,9 +92,12 @@ void readCommand(string command)
     case "process":
         rest.readProcess(channel, color);
         break;
+        version (linux)
+        {
     case "serial":
-        rest.readSerial(channel, color);
-        break;
+            rest.readSerial(channel, color);
+            break;
+        }
     default:
         throw new Exception("Cannot work with " ~ command);
     }
@@ -111,14 +116,20 @@ void noThrowReadCommand(string command)
         ownerTid.send(Failed(e.message.idup));
 }
 
+import std.getopt;
 void main(string[] args)
 {
-    import std.getopt;
 
     auto helpInformation = getopt(args, std.getopt.config.passThrough);
     if (helpInformation.helpWanted)
     {
-        defaultGetoptPrinter("Usage: pcat (id:color=protocol:rest)+\n  protocol = file|process|serial\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
+        auto protocol = "file|process";
+        version (linux)
+        {
+            protocol ~= "|serial";
+        }
+        defaultGetoptPrinter("Usage: pcat (id:color=protocol:rest)+\n  protocol = " ~ protocol
+                ~ "\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
                 helpInformation.options);
         return;
     }
