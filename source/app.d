@@ -10,29 +10,62 @@ import std.regex;
 import std.stdio;
 import std.string;
 
-void read(File file, string channel, AnsiColor color)
+enum Mode
+{
+    absolute,
+    relative
+}
+
+void read(File file, Mode mode, string channel, AnsiColor color)
 {
     // dfmt off
-    file
+    auto filtered = file
         .byLineCopy
-        .filter!(line => line.length > 0)
-        .each!(line =>
-               ownerTid().send(color,
-                               channel,
-                               Clock.currTime.toISOExtString,
-                               line));
+        .filter!(line => line.length > 0);
     // dfmt on
+
+    if (mode == Mode.relative)
+    {
+        struct Line
+        {
+            string text;
+            SysTime timestamp;
+        }
+
+        auto f = (AnsiColor color, string channel, Line line, Line nextLine) {
+            ownerTid().send(color, channel, line.timestamp, line.text, nextLine.timestamp);
+            return nextLine;
+        };
+        // dfmt off
+        filtered
+            .map!(line => Line(line, Clock.currTime))
+            .fold!((line, nextLine) => f(color, channel, line, nextLine))
+        ;
+        // dfmt on
+    }
+    else
+    {
+        // dfmt off
+        filtered
+            .each!(line =>
+                   ownerTid().send(color,
+                                   channel,
+                                   Clock.currTime.toISOExtString,
+                                   line))
+        ;
+        // dfmt on
+    }
 }
 
-void readFile(string filename, string channel, AnsiColor color)
+void readFile(string filename, Mode mode, string channel, AnsiColor color)
 {
-    File(filename).read(channel, color);
+    File(filename).read(mode, channel, color);
 }
 
-void readProcess(string command, string channel, AnsiColor color)
+void readProcess(string command, Mode mode, string channel, AnsiColor color)
 {
     auto pipes = command.pipeShell(Redirect.stdout | Redirect.stderrToStdout);
-    pipes.stdout.read(channel, color);
+    pipes.stdout.read(mode, channel, color);
     auto res = pipes.pid.wait;
     enforce(res == 0, "Command execution for %s failed with %s".format(command, res));
 }
@@ -60,7 +93,7 @@ version (linux)
     }
 
     // serial:/dev/ttyUSB0:921600
-    void readSerial(string serialSettings, string channel, AnsiColor color)
+    void readSerial(string serialSettings, Mode mode, string channel, AnsiColor color)
     {
         auto r = regex("(?P<path>.+?):(?P<baudrate>.*)");
         auto m = serialSettings.matchFirst(r);
@@ -70,11 +103,11 @@ version (linux)
         auto baudrate = m["baudrate"];
         auto file = File(path);
         file.setBaudrate(baudrate.to!int);
-        file.read(channel, color);
+        file.read(mode, channel, color);
     }
 }
 // name:color=[file:path|process:cmd|serial:path:baudrate]
-void readCommand(string command)
+void readCommand(Mode mode, string command)
 {
     auto r = regex("(?P<channel>.*?):(?P<color>.*?)=(?P<protocol>.*?):(?P<rest>.*)");
     auto m = command.matchFirst(r);
@@ -87,15 +120,15 @@ void readCommand(string command)
     switch (m["protocol"])
     {
     case "file":
-        rest.readFile(channel, color);
+        rest.readFile(mode, channel, color);
         break;
     case "process":
-        rest.readProcess(channel, color);
+        rest.readProcess(mode, channel, color);
         break;
         version (linux)
         {
     case "serial":
-            rest.readSerial(channel, color);
+            rest.readSerial(mode, channel, color);
             break;
         }
     default:
@@ -108,19 +141,22 @@ struct Failed
     string why;
 }
 
-void noThrowReadCommand(string command)
+void noThrowReadCommand(Mode mode, string command)
 {
     try
-        readCommand(command);
+        readCommand(mode, command);
     catch (Exception e)
         ownerTid.send(Failed(e.message.idup));
 }
 
 import std.getopt;
+
 void main(string[] args)
 {
 
-    auto helpInformation = getopt(args, std.getopt.config.passThrough);
+    Mode mode;
+    auto helpInformation = getopt(args, "mode|m", &mode, std.getopt.config.passThrough);
+    writeln(mode);
     if (helpInformation.helpWanted)
     {
         auto protocol = "file|process";
@@ -128,7 +164,7 @@ void main(string[] args)
         {
             protocol ~= "|serial";
         }
-        defaultGetoptPrinter("Usage: pcat (id:color=protocol:rest)+\n  protocol = " ~ protocol
+        defaultGetoptPrinter("Usage: pcat [--mode] [--help] (id:color=protocol:rest)+\n  protocol = " ~ protocol
                 ~ "\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
                 helpInformation.options);
         return;
@@ -136,7 +172,7 @@ void main(string[] args)
 
     // dfmt off
     auto subprocesses = args[1 .. $]
-        .map!(command => (&noThrowReadCommand).spawnLinked(command))
+        .map!(command => (&noThrowReadCommand).spawnLinked(mode, command))
         .array
         .count;
     // dfmt on
@@ -146,7 +182,13 @@ void main(string[] args)
         receive(
             (AnsiColor color, string channel, string timestamp, string message)
             {
-                writeln(new StyledString("%-26s %s ".format(timestamp, channel)).setForeground(color), message);
+                // absolute mode
+                writeln(new StyledString("%s %s ".format((timestamp).padRight('0', 26), channel)).setForeground(color), message);
+            },
+            (AnsiColor color, string channel, SysTime startTime, string message, SysTime endTime)
+            {
+                // relative mode
+                writeln(new StyledString("%s %s ".format(endTime - startTime, channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
