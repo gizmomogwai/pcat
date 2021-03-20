@@ -161,27 +161,29 @@ void noThrowReadCommand(Mode mode, string command)
         ownerTid.send(Failed(e.message.idup));
 }
 
-import std.getopt;
 
 void main(string[] args)
 {
     Mode mode;
     Timeunit timeunits;
 
+    import std.getopt;
     auto helpInformation = getopt(args,
-                                  "mode|m", &mode,
-                                  "timeunit|t", &timeunits,
+                                  "mode|m", "Timestamping mode", &mode,
+                                  "timeunit|t", "Resolution of duration display", &timeunits,
                                   std.getopt.config.passThrough);
     if (helpInformation.helpWanted)
     {
-        auto protocol = "file|process";
-        version (linux)
-        {
-            protocol ~= "|serial";
-        }
-        defaultGetoptPrinter("Usage: pcat [--mode=relative|absolute] [--timeunit=milliseconds|seconds|minutes] [--help] (id:color=protocol:rest)+\n  protocol = " ~ protocol
-                ~ "\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
-                helpInformation.options);
+        auto protocol = "file|process|serial";
+        // dfmt off
+        defaultGetoptPrinter("Usage: pcat [--mode=relative|absolute] [--timeunit=milliseconds|seconds|minutes] [--help] (id:color=protocol:rest)+"
+                             ~ "\n  color = red|green|..."
+                             ~ "\n  protocol = file|process|serial (serial only supported in linux)"
+                             ~ "\n    file = file:path"
+                             ~ "\n    process = process:command"
+                             ~ "\n    serial = serial:path:baudrate",
+                             helpInformation.options);
+        // dfmt on
         return;
     }
 
