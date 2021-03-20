@@ -21,7 +21,8 @@ void read(File file, Mode mode, string channel, AnsiColor color)
     // dfmt off
     auto filtered = file
         .byLineCopy
-        .filter!(line => line.length > 0);
+        .filter!(line => line.length > 0)
+        .chain(["TheSentinel"]);
     // dfmt on
 
     if (mode == Mode.relative)
@@ -33,7 +34,8 @@ void read(File file, Mode mode, string channel, AnsiColor color)
         }
 
         auto f = (AnsiColor color, string channel, Line line, Line nextLine) {
-            ownerTid().send(color, channel, line.timestamp, line.text, nextLine.timestamp);
+            ownerTid().send(color, channel, line.timestamp, line.text,
+                    line.timestamp - nextLine.timestamp);
             return nextLine;
         };
         // dfmt off
@@ -153,10 +155,8 @@ import std.getopt;
 
 void main(string[] args)
 {
-
     Mode mode;
     auto helpInformation = getopt(args, "mode|m", &mode, std.getopt.config.passThrough);
-    writeln(mode);
     if (helpInformation.helpWanted)
     {
         auto protocol = "file|process";
@@ -183,12 +183,12 @@ void main(string[] args)
             (AnsiColor color, string channel, string timestamp, string message)
             {
                 // absolute mode
-                writeln(new StyledString("%s %s ".format((timestamp).padRight('0', 26), channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s ".format(timestamp.padRight('0', 27), channel)).setForeground(color), message);
             },
-            (AnsiColor color, string channel, SysTime startTime, string message, SysTime endTime)
+            (AnsiColor color, string channel, SysTime startTime, string message, Duration duration)
             {
                 // relative mode
-                writeln(new StyledString("%s %s ".format(endTime - startTime, channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration, channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
