@@ -1,15 +1,5 @@
 import colored;
-import std.algorithm;
-import std.concurrency;
-import std.conv;
-import std.datetime;
-import std.exception;
-import std.functional;
-import std.process;
-import std.range;
-import std.regex;
-import std.stdio;
-import std.string;
+import std;
 
 enum Mode
 {
@@ -167,7 +157,6 @@ void main(string[] args)
     Mode mode;
     Timeunit timeunits;
 
-    import std.getopt;
     auto helpInformation = getopt(args,
                                   "mode|m", "Timestamping mode", &mode,
                                   "timeunit|t", "Resolution of duration display", &timeunits,
