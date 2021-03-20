@@ -35,7 +35,7 @@ void read(File file, Mode mode, string channel, AnsiColor color)
 
         auto f = (AnsiColor color, string channel, Line line, Line nextLine) {
             ownerTid().send(color, channel, line.timestamp, line.text,
-                    line.timestamp - nextLine.timestamp);
+                    nextLine.timestamp - line.timestamp);
             return nextLine;
         };
         // dfmt off
@@ -188,7 +188,7 @@ void main(string[] args)
             (AnsiColor color, string channel, SysTime startTime, string message, Duration duration)
             {
                 // relative mode
-                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration, channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"seconds", channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
