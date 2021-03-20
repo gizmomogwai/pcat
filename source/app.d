@@ -10,11 +10,16 @@ import std.regex;
 import std.stdio;
 import std.string;
 
-
 enum Mode
 {
     absolute,
-    relative
+    relative,
+}
+
+enum Timeunit {
+    msecs,
+    seconds,
+    minutes,
 }
 
 void read(File file, Mode mode, string channel, AnsiColor color)
@@ -34,16 +39,18 @@ void read(File file, Mode mode, string channel, AnsiColor color)
             SysTime timestamp;
         }
 
-        auto f = (AnsiColor color, string channel, Line line, Line nextLine) {
-            ownerTid().send(color, channel, line.timestamp, line.text,
-                    nextLine.timestamp - line.timestamp);
-            return nextLine;
-        };
         // dfmt off
         filtered
             .chain(["EOF"])
             .map!(line => Line(line, Clock.currTime))
-            .fold!((line, nextLine) => f(color, channel, line, nextLine))
+            .fold!((line, nextLine) {
+                ownerTid().send(color,
+                                channel,
+                                line.timestamp,
+                                line.text,
+                                nextLine.timestamp - line.timestamp);
+                return nextLine;
+            })
         ;
         // dfmt on
     }
@@ -51,11 +58,11 @@ void read(File file, Mode mode, string channel, AnsiColor color)
     {
         // dfmt off
         filtered
-            .each!(line =>
-                   ownerTid().send(color,
-                                   channel,
-                                   Clock.currTime.toISOExtString,
-                                   line))
+            .each!(line => ownerTid().send(color,
+                                           channel,
+                                           Clock.currTime.toISOExtString,
+                                           line)
+            )
         ;
         // dfmt on
     }
@@ -158,7 +165,12 @@ import std.getopt;
 void main(string[] args)
 {
     Mode mode;
-    auto helpInformation = getopt(args, "mode|m", &mode, std.getopt.config.passThrough);
+    Timeunit timeunits;
+
+    auto helpInformation = getopt(args,
+                                  "mode|m", &mode,
+                                  "timeunit|t", &timeunits,
+                                  std.getopt.config.passThrough);
     if (helpInformation.helpWanted)
     {
         auto protocol = "file|process";
@@ -166,7 +178,7 @@ void main(string[] args)
         {
             protocol ~= "|serial";
         }
-        defaultGetoptPrinter("Usage: pcat [--mode] [--help] (id:color=protocol:rest)+\n  protocol = " ~ protocol
+        defaultGetoptPrinter("Usage: pcat [--mode=relative|absolute] [--timeunit=milliseconds|seconds|minutes] [--help] (id:color=protocol:rest)+\n  protocol = " ~ protocol
                 ~ "\n  file = file:path\n  process = process:command\n  serial = serial:path:baudrate",
                 helpInformation.options);
         return;
@@ -190,8 +202,9 @@ void main(string[] args)
             (AnsiColor color, string channel, SysTime startTime, string message, Duration duration)
             {
                 // relative mode
-//                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"seconds", channel)).setForeground(color), message);
-                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"msecs", channel)).setForeground(color), message);
+                auto d = (timeunits == Timeunit.minutes) ? duration.total!"minutes" :
+                    (timeunits == Timeunit.seconds) ? duration.total!"seconds" : duration.total!"msecs";
+                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), d, channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
