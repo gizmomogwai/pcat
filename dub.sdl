@@ -4,3 +4,30 @@ authors "Christian Koestlin"
 copyright "Copyright (c), Christian Koestlin"
 license "MIT"
 dependency "colored" version="~>0.0.21"
+
+configuration "application" {
+  targetType "executable"
+  targetPath "out/main"
+  mainSourceFile "source/app.d"
+}
+
+configuration "library" {
+  targetType "library"
+  targetPath "out/lib"
+
+  excludedSourceFiles "source/app.d"
+}
+
+configuration "unittest" {
+  targetType "executable"
+  targetName "unittest"
+  targetPath "out/test"
+
+  dependency "unit-threaded" version="~>1.0.11"
+
+  preBuildCommands "$DUB run unit-threaded -c gen_ut_main -- -f out/generated/unit-threaded/testsuite.d"
+  mainSourceFile "out/generated/unit-threaded/testsuite.d"
+
+  excludedSourceFiles "source/app.d"
+}
+

@@ -10,6 +10,7 @@ import std.regex;
 import std.stdio;
 import std.string;
 
+
 enum Mode
 {
     absolute,
@@ -22,7 +23,7 @@ void read(File file, Mode mode, string channel, AnsiColor color)
     auto filtered = file
         .byLineCopy
         .filter!(line => line.length > 0)
-        .chain(["TheSentinel"]);
+    ;
     // dfmt on
 
     if (mode == Mode.relative)
@@ -40,6 +41,7 @@ void read(File file, Mode mode, string channel, AnsiColor color)
         };
         // dfmt off
         filtered
+            .chain(["EOF"])
             .map!(line => Line(line, Clock.currTime))
             .fold!((line, nextLine) => f(color, channel, line, nextLine))
         ;
@@ -188,7 +190,8 @@ void main(string[] args)
             (AnsiColor color, string channel, SysTime startTime, string message, Duration duration)
             {
                 // relative mode
-                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"seconds", channel)).setForeground(color), message);
+//                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"seconds", channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), duration.total!"msecs", channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
