@@ -4,6 +4,7 @@ import std.concurrency;
 import std.conv;
 import std.datetime;
 import std.exception;
+import std.functional;
 import std.process;
 import std.range;
 import std.regex;
@@ -192,19 +193,20 @@ void main(string[] args)
     // dfmt on
     while (subprocesses > 0)
     {
+        alias pad = partial!(partial!(reverseArgs!(padRight), 27), '0');
         // dfmt off
         receive(
             (AnsiColor color, string channel, string timestamp, string message)
             {
                 // absolute mode
-                writeln(new StyledString("%s %s ".format(timestamp.padRight('0', 27), channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s ".format(pad(timestamp), channel)).setForeground(color), message);
             },
             (AnsiColor color, string channel, SysTime startTime, string message, Duration duration)
             {
                 // relative mode
                 auto d = (timeunits == Timeunit.minutes) ? duration.total!"minutes" :
                     (timeunits == Timeunit.seconds) ? duration.total!"seconds" : duration.total!"msecs";
-                writeln(new StyledString("%s %s %s ".format(startTime.to!string.padRight('0', 27), d, channel)).setForeground(color), message);
+                writeln(new StyledString("%s %s %s ".format(pad(startTime.to!string), d, channel)).setForeground(color), message);
             },
             (LinkTerminated terminated)
             {
