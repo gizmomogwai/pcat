@@ -1,9 +1,9 @@
 name "pcat"
 description "A parallel cat."
 authors "Christian Koestlin"
-copyright "Copyright (c), Christian Koestlin"
+copyright "Copyright (c) 2019, Christian Koestlin"
 license "MIT"
-dependency "colored" version="~>0.0.26"
+dependency "colored" version="~>0.0.28"
 
 configuration "application" {
   targetType "executable"
@@ -25,7 +25,7 @@ configuration "unittest" {
   targetName "unittest"
   targetPath "out/test"
 
-  dependency "unit-threaded" version="~>2.0.4"
+  dependency "unit-threaded" version="~>2.1.1"
 
   mainSourceFile "source/testsuite.d"
   excludedSourceFiles "source/app.d"
